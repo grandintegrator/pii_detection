@@ -11,16 +11,13 @@ pprint.pprint(model.predict("Ajmal"))
 
 # COMMAND ----------
 
-_ = spark.sql("USE ajmal_demo_catalog.seek_pii;")
+# _ = spark.sql("USE ajmal_demo_catalog.seek_pii;")
+_ = spark.sql("USE seek_pii;")
 bronze_cv_data = table("bronze_cv_data")
 
 # COMMAND ----------
 
 display(bronze_cv_data)
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 

@@ -1,6 +1,7 @@
 # Databricks notebook source
 # MAGIC %sql
-# MAGIC USE ajmal_demo_catalog.seek_pii;
+# MAGIC -- USE ajmal_demo_catalog.seek_pii;
+# MAGIC USE seek_pii
 
 # COMMAND ----------
 

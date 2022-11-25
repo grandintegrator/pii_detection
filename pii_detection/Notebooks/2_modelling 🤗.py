@@ -1,6 +1,7 @@
 # Databricks notebook source
 # MAGIC %sql
-# MAGIC USE ajmal_demo_catalog.seek_pii;
+# MAGIC -- USE ajmal_demo_catalog.seek_pii;
+# MAGIC USE seek_pii;
 
 # COMMAND ----------
 
@@ -141,12 +142,8 @@ mlflow_model.predict(None, example_payload)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC Let's try our model against single name entities to test robustness
+# MAGIC Let's try our model against single name entities to test robustness. This is key because there can be certain columns that just contain names for example and we'd like to recognise those too.
 
 # COMMAND ----------
 
