@@ -1,4 +1,12 @@
 # Databricks notebook source
+# MAGIC %md # TODO
+# MAGIC 
+# MAGIC 1. need to install `spacy download en_core_web_lg` on every worker node, put it into init script
+# MAGIC 2. predict() can return a multi column pdf, it can improve performance, don't need to parse json later in spark dataframe
+# MAGIC 3. change pandas udf to pandas function api, if we change the predict() to return multiple columns
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC -- USE ajmal_demo_catalog.seek_pii;
 # MAGIC USE seek_pii;
@@ -18,26 +26,10 @@ os.system("spacy download en_core_web_lg")
 
 # COMMAND ----------
 
-# list of entities: https://microsoft.github.io/presidio/supported_entities/#list-of-supported-entities
-PII_ENTITIES = [
-    "CREDIT_CARD",
-    "DATE_TIME",
-    "EMAIL_ADDRESS",
-    "IBAN_CODE",
-    "IP_ADDRESS",
-    "NRP",
-    "LOCATION",
-    "PERSON",
-    "PHONE_NUMBER",
-    "MEDICAL_LICENSE",
-    "URL",
-    "ORGANIZATION"
-]
-
-# COMMAND ----------
-
 # DBTITLE 1,Build and define our customer 🤗 model for NER and PII detection
 import mlflow
+from json import dumps
+import pandas as pd
 
 class HFTransformersPIIDetector(mlflow.pyfunc.PythonModel):
   """
@@ -49,6 +41,22 @@ class HFTransformersPIIDetector(mlflow.pyfunc.PythonModel):
   def load_context(self, context):
     self.engine = AnonymizerEngine()
 
+  # list of entities: https://microsoft.github.io/presidio/supported_entities/#list-of-supported-entities
+  PII_ENTITIES = [
+      "CREDIT_CARD",
+      "DATE_TIME",
+      "EMAIL_ADDRESS",
+      "IBAN_CODE",
+      "IP_ADDRESS",
+      "NRP",
+      "LOCATION",
+      "PERSON",
+      "PHONE_NUMBER",
+      "MEDICAL_LICENSE",
+      "URL",
+      "ORGANIZATION"
+  ]  
+  
   class HFTransformersRecognizer(EntityRecognizer):
     def __init__(
         self,
@@ -103,16 +111,27 @@ class HFTransformersPIIDetector(mlflow.pyfunc.PythonModel):
     analyzer.registry.add_recognizer(transformers_recognizer)
     return analyzer
 
-  def predict(self, context, model_input):
+  def predict(self, context, model_input_df):
     analyzer = self.model_fn("Jean-Baptiste/roberta-large-ner-english")
-
-    # identify entities
-    results = analyzer.analyze(text=model_input, entities=PII_ENTITIES, language="en")
-
-    # anonymize text
-    anonymised = self.engine.anonymize(text=model_input, analyzer_results=results)
     
-    return {"found": [entity.to_dict() for entity in results], "anonymized": anonymised.text}
+    items = []
+    
+    for _, model_input in model_input_df.iterrows():
+      
+      # identify entities
+      results = analyzer.analyze(text=model_input[0], entities=self.PII_ENTITIES, language="en")
+
+      # anonymize text
+      anonymised = self.engine.anonymize(text=model_input[0], analyzer_results=results)
+    
+      item = {"found": [entity.to_dict() for entity in results], "anonymized": anonymised.text}
+      
+      for entity_dicts in item["found"]:
+        entity_dicts["score"] = float(entity_dicts["score"])
+      
+      items.append(dumps(item)) #TODO, directly return multiple columns, then can't use pandas udf, need pandas function api later
+    
+    return pd.DataFrame(items, columns=["result"])
 
 # COMMAND ----------
 
@@ -138,7 +157,8 @@ Kate's social security number is 078-05-1126.  Her driver license? it is 1234567
 
 """
 
-mlflow_model.predict(None, example_payload)
+import pprint
+pprint.pprint(mlflow_model.predict(None, pd.DataFrame([example_payload])).iloc[0][0])
 
 # COMMAND ----------
 
@@ -147,18 +167,18 @@ mlflow_model.predict(None, example_payload)
 
 # COMMAND ----------
 
-single_name_payload = "Ajmal Aziz"
-mlflow_model.predict(None, single_name_payload)
+single_name_payload = pd.DataFrame(["Ajmal"])
+pprint.pprint(mlflow_model.predict(None, single_name_payload).iloc[0][0])
 
 # COMMAND ----------
 
-single_name_payload = "Graham"
-mlflow_model.predict(None, single_name_payload)
+single_name_payload = pd.DataFrame(["Graham"])
+pprint.pprint(mlflow_model.predict(None, single_name_payload).iloc[0][0])
 
 # COMMAND ----------
 
-single_name_payload = "Thet Ko is awesome."
-mlflow_model.predict(None, single_name_payload)
+single_name_payload = pd.DataFrame(["Thet Ko is awesome."])
+pprint.pprint(mlflow_model.predict(None, single_name_payload).iloc[0][0])
 
 # COMMAND ----------
 
